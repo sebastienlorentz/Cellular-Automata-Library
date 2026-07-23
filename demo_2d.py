@@ -23,4 +23,4 @@ world.animate(MY_LIFE, interval=50)
 Grid([60, 60]).randomise(0.3, seed=0).animate(LIFE, interval=50)
 
 # Same engine, another member of the family.
-Grid([60, 60]).randomise(0.3, seed=0).animate(life_like('B36/S23', name='HighLife'))
+Grid([60, 60]).randomise(0.3, seed=0).animate(life_like('B3/S12345', name='Maze'))

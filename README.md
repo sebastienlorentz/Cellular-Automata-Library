@@ -67,7 +67,8 @@ The grid then takes its neighbourhood, palette and title from the rule.
 ### Rule arguments
 
 ```python
-Rule(fn, neighbourhood=None, colours=STATE_COLOURS, name='', needs_index=False)
+Rule(fn, neighbourhood=None, colours=STATE_COLOURS, name='', needs_index=False,
+     display=None, style=None)
 ```
 
 | Argument | Meaning |
@@ -77,6 +78,31 @@ Rule(fn, neighbourhood=None, colours=STATE_COLOURS, name='', needs_index=False)
 | `colours` | How to draw the states. A list of colours, or the name of a matplotlib colormap. See [Colours](#colours). |
 | `name` | Used as the plot title, unless you pass `title=` yourself. |
 | `needs_index` | Pass `True` if `fn` takes a third argument, the cell's coordinates. |
+| `display` | Turns a grid of cells into the array actually drawn. See [Drawing something other than the state](#drawing-something-other-than-the-state). |
+| `style` | Draw settings that go with `display` — `cmap`, `vmin`, `vmax`, `grid_lines`, … Overrides `colours`; anything you pass to `animate`/`show`/`spacetime` overrides it in turn. |
+
+### Drawing something other than the state
+
+`colours` maps a cell's value to a colour, which is enough while the value *is*
+the state. When cells carry more than that — remaining fuel, age, height — give
+the rule a `display` function and the `style` to draw its output with:
+
+```python
+def wildfire(terrain, max_fuel):
+    def shade(cells):
+        # unburnt cells shaded by how much fuel is left, the rest flat
+        return np.where(cells == UNBURNT, terrain / max_fuel, cells)
+
+    return Rule(step, neighbourhood='moore', name='Wildfire',
+                display=shade,
+                style=dict(cmap=fuel_cmap(), vmin=0, vmax=3, grid_lines=False))
+
+g.animate(wildfire(terrain, max_fuel))
+```
+
+The automaton still steps over states; `display` runs per frame, on the way to
+the screen only, so `g.cells` and `g.history` keep the real values.
+`show(rule)`, `spacetime`, `animate` and `save_gif` all go through it.
 
 ### Rules with parameters
 
@@ -231,6 +257,7 @@ grows without bound, so leave it off for long runs.
 ```python
 g.show(title='start')                  # the grid as it stands
 g.show(save='start.png')               # ...or write it to a file
+g.show(rule)                           # ...drawn the rule's way
 g.animate(rule, interval=50)           # live, endless, until you close it
 g.animate(rule, record=True)           # same, keeping history
 g.save_gif('out.gif', rule, steps=60)  # needs a count; endless can't be saved
@@ -239,8 +266,8 @@ g.spacetime(rule, 64, save='r90.png')
 ```
 
 Style arguments are shared by all of them: `cmap`, `grid_lines`, `line_width`,
-`title`, `vmin`, `vmax` — see [Colours](#colours). A `Rule`'s `colours` and
-`name` supply the defaults; anything you pass explicitly wins.
+`title`, `vmin`, `vmax` — see [Colours](#colours). A `Rule`'s `colours`, `name`
+and `style` supply the defaults; anything you pass explicitly wins.
 
 `animate()` returns the animation object, and you have to keep a reference to it
 or matplotlib garbage-collects it and the display freezes. At the top level the
@@ -330,6 +357,7 @@ box.animate(Rule(diffuse, neighbourhood='von_neumann', colours='inferno'),
 | `demo_rules.py` | rules with parameters (closures) and with position (`needs_index`) |
 | `demo_boundaries.py` | the same seed under all four edge behaviours |
 | `demo_continuous.py` | float cells, diffusion in an insulated box |
+| `demo_display.py` | conditional colouring via `display`/`style` (Life leaving embers) |
 | `demo_export.py` | `save=` and `save_gif()` |
 
 ## Limits

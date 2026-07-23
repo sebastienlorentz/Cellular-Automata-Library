@@ -31,11 +31,16 @@ class Rule:
     be drawn. Anything left as None falls back to the grid's own setting."""
 
     def __init__(self, fn, neighbourhood=None, colours=STATE_COLOURS, name='',
-                 needs_index=False):
+                 needs_index=False, display=None, style=None):
         self.fn = fn
         self.neighbourhood = neighbourhood
         self.colours = colours
         self.name = name
+        # display turns a grid of states into the array that actually gets drawn,
+        # for automata whose cells carry more than their state (fuel, age, height).
+        # style holds the draw settings that go with it (cmap, vmin, vmax, ...).
+        self.display = display or (lambda cells: cells)
+        self.style = style or {}
         # needs_index=True gets the cell's coordinates as a third argument, for
         # rules that aren't uniform across the grid (terrain, wind, a fixed source).
         self.needs_index = needs_index
@@ -138,10 +143,17 @@ class Grid:
         rule = as_rule(rule)
         if rule.neighbourhood:
             self.neighbourhood = rule.neighbourhood  # the automaton sets what it sees
-        new = np.empty_like(self.cells)
+        cells = self.cells
+        new = np.empty_like(cells)
         padded = self.padded()
-        for index in np.ndindex(self.cells.shape):
-            new[index] = rule(self.cells[index], self.neighbours(index, padded), index)
+        # Hoisted out of the per-cell loop: they're constant for the whole grid,
+        # and self.radius recomputes a max over every offset on each lookup.
+        r = self.radius
+        offsets = self.offsets
+        for index in np.ndindex(cells.shape):
+            neigh = [padded[tuple(i + o + r for i, o in zip(index, offset))]
+                     for offset in offsets]
+            new[index] = rule(cells[index], neigh, index)
         return new
 
     def frames(self, rule, record=False):
@@ -175,9 +187,19 @@ class Grid:
         ax.set_title(title)
         return mesh
 
-    def show(self, save=None, **style):
-        """Draw the grid as it stands. save='x.png' writes it instead."""
-        self._draw(self.cells, plt.gca(), **style)
+    def _style_for(self, rule, style):
+        """A rule's drawing settings, with anything passed to the call winning."""
+        return {'cmap': rule.colours, 'title': rule.name, **rule.style, **style}
+
+    def show(self, rule=None, save=None, **style):
+        """Draw the grid as it stands. Pass the rule to draw it the rule's way,
+        save='x.png' writes it instead."""
+        cells = self.cells
+        if rule is not None:
+            rule = as_rule(rule)
+            cells = rule.display(cells)
+            style = self._style_for(rule, style)
+        self._draw(cells, plt.gca(), **style)
         self._finish(save)
 
     def spacetime(self, rule, steps, save=None, **style):
@@ -188,10 +210,10 @@ class Grid:
         generations = self.frames(rule, record=True)
         for _ in range(steps):
             next(generations)
-        style.setdefault('cmap', rule.colours)
-        style.setdefault('title', rule.name)
+        style = self._style_for(rule, style)
         style.setdefault('grid_lines', False)
-        self._draw(np.array(self.history), plt.gca(), **style)
+        rows = np.array([rule.display(cells) for cells in self.history])
+        self._draw(rows, plt.gca(), **style)
         self._finish(save)
 
     @staticmethod
@@ -205,13 +227,12 @@ class Grid:
     def _mesh_animation(self, rule, generations, interval, style, save_count=None):
         """Shared by animate() and save_gif(): a figure whose mesh redraws from
         whatever stream of grids it's handed."""
-        style.setdefault('cmap', rule.colours)   # explicit style still wins
-        style.setdefault('title', rule.name)
+        style = self._style_for(rule, style)   # explicit style still wins
         fig, ax = plt.subplots()
-        mesh = self._draw(self.cells, ax, **style)
+        mesh = self._draw(rule.display(self.cells), ax, **style)
 
         def update(cells):
-            mesh.set_array(as_2d(cells))
+            mesh.set_array(as_2d(rule.display(cells)))
             return [mesh]
 
         anim = animation.FuncAnimation(
