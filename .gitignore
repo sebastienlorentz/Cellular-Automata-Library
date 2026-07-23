@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+.idea/
+
+# written by demo_export.py
+seed.png
+life.gif
+rule30.png
