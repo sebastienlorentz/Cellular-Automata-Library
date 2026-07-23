@@ -47,3 +47,17 @@ WALL = Rule(heated_wall, neighbourhood='von_neumann', colours='inferno',
 
 room = Grid([40, 40], boundary='edge')
 room.animate(WALL, interval=50, vmin=0, vmax=1, grid_lines=False)
+
+
+# --- a custom neighbourhood: offsets instead of a name ----------------------
+# The same averaging rule, but each cell only sees the two cells above it and
+# the two below - nothing to either side. Heat spreads in vertical stripes.
+# Offsets are steps from the cell being updated, and the radius can be any
+# size; the border is padded to match.
+STRIPES = Rule(lambda value, neighbours: (value + sum(neighbours)) / (len(neighbours) + 1),
+               neighbourhood=[(-2, 0), (-1, 0), (1, 0), (2, 0)],
+               colours='inferno', name='Vertical spread only')
+
+stripes = Grid([40, 40], boundary='reflect')
+stripes.cells[18:22, 18:22] = 1.0
+stripes.animate(STRIPES, interval=50, vmin=0, vmax=1, grid_lines=False)

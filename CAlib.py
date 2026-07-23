@@ -75,10 +75,31 @@ class Grid:
         return self._neighbourhood
 
     @neighbourhood.setter
-    def neighbourhood(self, name):
-        if name not in NEIGHBOURHOODS:
-            raise ValueError(f'neighbourhood must be one of {list(NEIGHBOURHOODS)}')
-        self._neighbourhood = name
+    def neighbourhood(self, value):
+        # Either a name from NEIGHBOURHOODS, or your own list of offsets:
+        # [(-1, 0), (1, 0)] sees only up and down, [(0, -2)] only two to the left.
+        if isinstance(value, str):
+            if value not in NEIGHBOURHOODS:
+                raise ValueError(f'neighbourhood must be one of '
+                                 f'{list(NEIGHBOURHOODS)}, or a list of offsets')
+        else:
+            value = [tuple(offset) for offset in value]
+            if any(len(offset) != self.cells.ndim for offset in value):
+                raise ValueError(f'offsets need {self.cells.ndim} coordinate(s) '
+                                 f'for a {self.cells.ndim}D grid')
+        self._neighbourhood = value
+
+    @property
+    def offsets(self):
+        """The neighbourhood as offsets, whether it was named or given directly."""
+        if isinstance(self._neighbourhood, str):
+            return NEIGHBOURHOODS[self._neighbourhood]
+        return self._neighbourhood
+
+    @property
+    def radius(self):
+        """How far the furthest offset reaches - how wide the border must be."""
+        return max(max(abs(c) for c in offset) for offset in self.offsets)
 
     def randomise(self, density=0.5, states=2, seed=None):
         """Scatter random live cells. density is the fraction that end up
@@ -90,21 +111,24 @@ class Grid:
         return self
 
     def padded(self):
-        """The grid inside a one-cell border holding whatever the boundary
-        implies, so neighbour lookups never need a bounds check."""
+        """The grid inside a border holding whatever the boundary implies, so
+        neighbour lookups never need a bounds check. The border is as wide as
+        the neighbourhood reaches, so offsets of any radius stay inside it."""
         if self.boundary == 'fixed':
-            return np.pad(self.cells, 1, 'constant', constant_values=self.outside)
-        return np.pad(self.cells, 1, BOUNDARIES[self.boundary])
+            return np.pad(self.cells, self.radius, 'constant',
+                          constant_values=self.outside)
+        return np.pad(self.cells, self.radius, BOUNDARIES[self.boundary])
 
     def neighbours(self, index, padded=None):
-        """Values around `index`, in the offset order listed in NEIGHBOURHOODS.
+        """Values around `index`, in the order the offsets are listed in.
         `padded` is passed in by step() so the border is built once per
         generation rather than once per cell."""
         if padded is None:
             padded = self.padded()
-        # +1 shifts into the padded frame, where index (0, 0) sits at (1, 1).
-        return [padded[tuple(i + o + 1 for i, o in zip(index, offset))]
-                for offset in NEIGHBOURHOODS[self.neighbourhood]]
+        # + radius shifts into the padded frame, where index 0 sits at radius.
+        r = self.radius
+        return [padded[tuple(i + o + r for i, o in zip(index, offset))]
+                for offset in self.offsets]
 
     def step(self, rule):
         """One generation. Reads the current grid and returns a fresh array, so

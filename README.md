@@ -171,6 +171,29 @@ spread or diffusion. `'1d'` is just left and right.
 positional rules can tell one direction from another. For `'1d'` that's
 `[left, right]`; for the 2D ones it's reading order, top-left first.
 
+### Custom neighbourhoods
+
+The three names are shorthand. Anywhere a name is accepted — on `Grid` or on a
+`Rule` — you can give your own list of offsets instead. An offset is how far to
+step from the cell being updated: `(-1, 0)` is the cell above, `(0, 2)` is two
+to the right.
+
+```python
+Grid([50, 50], neighbourhood=[(-1, 0), (1, 0)])         # vertical only
+Grid([50, 50], neighbourhood=[(-1, -1), (-1, 0), (-1, 1)])   # upwind only
+Grid(100, neighbourhood=[(-2,), (-1,), (1,), (2,)])     # 1D, radius 2
+Rule(fn, neighbourhood=[(0, 0), (0, 1)])                # include the cell itself
+```
+
+Radius isn't limited to 1 — the border is padded as wide as the furthest offset
+reaches, so a radius-2 neighbourhood wraps and reflects correctly like any
+other. Offsets must have one coordinate per dimension, checked when you set
+them. `g.offsets` gives the resolved list either way, and `g.radius` how far it
+reaches.
+
+Order still matters: `neighbours()` returns values in the order you list the
+offsets, so a rule can tell its upwind neighbours from its downwind ones.
+
 ## Boundaries
 
 What a cell at the edge sees beyond it, for a row `a b c d`:
@@ -251,8 +274,8 @@ your cells hold **states** or **quantities**.
 list, not a value to be scaled. `0` takes the first colour, `1` the second:
 
 ```python
-g.animate(rule, cmap=['white', 'black'])             # 2 states
-g.animate(rule, cmap=['black', 'green', 'red'])      # 3: empty, tree, burning
+g.animate(rule, cmap=['white', 'black'])             # 2 states: 0, 1
+g.animate(rule, cmap=['white', 'blue', 'red'])       # 3 states: 0, 1, 2
 ```
 
 Any matplotlib colour spec works — names, `'#ff8800'`, RGB tuples. The default
