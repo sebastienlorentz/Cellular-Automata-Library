@@ -81,29 +81,6 @@ Rule(fn, neighbourhood=None, colours=STATE_COLOURS, name='', needs_index=False,
 | `display` | Turns a grid of cells into the array actually drawn. See [Drawing something other than the state](#drawing-something-other-than-the-state). |
 | `style` | Draw settings that go with `display` — `cmap`, `vmin`, `vmax`, `grid_lines`, … Overrides `colours`; anything you pass to `animate`/`show`/`spacetime` overrides it in turn. |
 
-### Drawing something other than the state
-
-`colours` maps a cell's value to a colour, which is enough while the value *is*
-the state. When cells carry more than that — remaining fuel, age, height — give
-the rule a `display` function and the `style` to draw its output with:
-
-```python
-def wildfire(terrain, max_fuel):
-    def shade(cells):
-        # unburnt cells shaded by how much fuel is left, the rest flat
-        return np.where(cells == UNBURNT, terrain / max_fuel, cells)
-
-    return Rule(step, neighbourhood='moore', name='Wildfire',
-                display=shade,
-                style=dict(cmap=fuel_cmap(), vmin=0, vmax=3, grid_lines=False))
-
-g.animate(wildfire(terrain, max_fuel))
-```
-
-The automaton still steps over states; `display` runs per frame, on the way to
-the screen only, so `g.cells` and `g.history` keep the real values.
-`show(rule)`, `spacetime`, `animate` and `save_gif` all go through it.
-
 ### Rules with parameters
 
 Write a function that *returns* a rule. Nothing in the library is needed for
@@ -331,6 +308,29 @@ list they're pinned for you, to `0` and `len(list) - 1`.)
 | `line_width` | Thickness of those lines. |
 | `save` | On `show()` and `spacetime()`: write to this path instead of opening a window. |
 | `interval` | On `animate()` and `save_gif()`: milliseconds per frame. |
+
+### Drawing something other than the state
+
+`colours` maps a cell's value to a colour, which is enough while the value *is*
+the state. When cells carry more than that — remaining fuel, age, height — give
+the rule a `display` function and the `style` to draw its output with:
+
+```python
+def wildfire(terrain, max_fuel):
+    def shade(cells):
+        # unburnt cells shaded by how much fuel is left, the rest flat
+        return np.where(cells == UNBURNT, terrain / max_fuel, cells)
+
+    return Rule(step, neighbourhood='moore', name='Wildfire',
+                display=shade,
+                style=dict(cmap=fuel_cmap(), vmin=0, vmax=3, grid_lines=False))
+
+g.animate(wildfire(terrain, max_fuel))
+```
+
+The automaton still steps over states; `display` runs per frame, on the way to
+the screen only, so `g.cells` and `g.history` keep the real values.
+`show(rule)`, `spacetime`, `animate` and `save_gif` all go through it.
 
 ## Continuous automata
 
