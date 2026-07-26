@@ -31,8 +31,11 @@ class Rule:
     be drawn. Anything left as None falls back to the grid's own setting."""
 
     def __init__(self, fn, neighbourhood=None, colours=STATE_COLOURS, name='',
-                 needs_index=False, display=None, style=None):
+                 needs_index=False, display=None, style=None, vectorized=None):
         self.fn = fn
+        # vectorized(cells, padded, offsets, radius) -> the whole next grid, in
+        # numpy. Optional: without it step() falls back to the per-cell loop.
+        self.vectorized = vectorized
         self.neighbourhood = neighbourhood
         self.colours = colours
         self.name = name
@@ -138,18 +141,22 @@ class Grid:
     def step(self, rule):
         """One generation. Reads the current grid and returns a fresh array, so
         every cell updates off the same state (CA updates are simultaneous)."""
-        # ponytail: plain Python loop over every cell, so any rule callback works.
-        # Vectorise with np.roll per offset if a big grid gets slow.
         rule = as_rule(rule)
         if rule.neighbourhood:
             self.neighbourhood = rule.neighbourhood  # the automaton sets what it sees
         cells = self.cells
-        new = np.empty_like(cells)
         padded = self.padded()
         # Hoisted out of the per-cell loop: they're constant for the whole grid,
         # and self.radius recomputes a max over every offset on each lookup.
         r = self.radius
         offsets = self.offsets
+        if rule.vectorized:
+            # Same padded array, so the boundary means the same thing either way.
+            return rule.vectorized(cells, padded, offsets, r)
+        # ponytail: plain Python loop over every cell, so any rule callback works.
+        # Minutes per generation on a 500k-cell grid - give the rule a
+        # `vectorized` for those.
+        new = np.empty_like(cells)
         for index in np.ndindex(cells.shape):
             neigh = [padded[tuple(i + o + r for i, o in zip(index, offset))]
                      for offset in offsets]
@@ -261,6 +268,13 @@ class Grid:
         return anim  # keep the reference alive or the animation stops
 
 
+def shifted(padded, offset, radius, shape):
+    """Every cell's neighbour at `offset`, all at once: the padded grid sliced
+    back down to `shape`. The building block for a rule's `vectorized`."""
+    return padded[tuple(slice(radius + o, radius + o + n)
+                        for o, n in zip(offset, shape))]
+
+
 def as_2d(cells):
     return cells.reshape(1, -1) if cells.ndim == 1 else cells
 
@@ -277,8 +291,15 @@ def life_like(spec='B3/S23', name=None):
         alive = sum(neighbours)
         return 1 if alive in (survive if value else born) else 0
 
+    def vectorized(cells, padded, offsets, radius):
+        alive = sum(shifted(padded, offset, radius, cells.shape)
+                    for offset in offsets)
+        rules = np.where(cells != 0, np.isin(alive, list(survive)),
+                         np.isin(alive, list(born)))
+        return rules.astype(cells.dtype)
+
     return Rule(rule, neighbourhood='moore', colours=['white', 'black'],
-                name=name or spec)
+                name=name or spec, vectorized=vectorized)
 
 
 LIFE = life_like('B3/S23', name="Conway's Life")

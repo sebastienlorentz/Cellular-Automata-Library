@@ -68,7 +68,7 @@ The grid then takes its neighbourhood, palette and title from the rule.
 
 ```python
 Rule(fn, neighbourhood=None, colours=STATE_COLOURS, name='', needs_index=False,
-     display=None, style=None)
+     display=None, style=None, vectorized=None)
 ```
 
 | Argument | Meaning |
@@ -80,6 +80,7 @@ Rule(fn, neighbourhood=None, colours=STATE_COLOURS, name='', needs_index=False,
 | `needs_index` | Pass `True` if `fn` takes a third argument, the cell's coordinates. |
 | `display` | Turns a grid of cells into the array actually drawn. See [Drawing something other than the state](#drawing-something-other-than-the-state). |
 | `style` | Draw settings that go with `display` — `cmap`, `vmin`, `vmax`, `grid_lines`, … Overrides `colours`; anything you pass to `animate`/`show`/`spacetime` overrides it in turn. |
+| `vectorized` | Optional numpy version of `fn` that computes the whole next grid at once. See [Big grids](#big-grids). |
 
 ### Rules with parameters
 
@@ -229,6 +230,35 @@ forever at flat memory.
 space-time array, one row per generation, which is what `spacetime()` draws. It
 grows without bound, so leave it off for long runs.
 
+### Big grids
+
+`step()` calls the rule once per cell in Python, which is fine at 60×60 and far
+too slow at 700×800 — seconds per generation. A rule can supply a `vectorized`
+that computes the whole grid in numpy instead, and `step()` uses it when it's
+there:
+
+```python
+from CAlib import Rule, shifted
+
+def life_fast(cells, padded, offsets, radius):
+    alive = sum(shifted(padded, offset, radius, cells.shape) for offset in offsets)
+    return ((alive == 3) | ((cells != 0) & (alive == 2))).astype(cells.dtype)
+
+Rule(life, neighbourhood='moore', vectorized=life_fast)
+```
+
+`shifted(padded, offset, radius, shape)` is every cell's neighbour at one
+offset, as an array — the vectorised equivalent of one entry of `neighbours`.
+`padded` is the same array the per-cell path uses, so boundaries behave
+identically either way; sum over `offsets` and you have the neighbour count for
+the whole grid at once.
+
+`fn` is still required and still has to work — it's the fallback and the
+reference. Keep the two in step: [`test_vectorized.py`](test_vectorized.py)
+checks Life's two paths agree cell for cell over 50 generations, on every
+boundary. Built-in `life_like` rules (so `LIFE` too) come with one; on 560k
+cells that's 3.5 s → 0.02 s per generation.
+
 ## Viewing
 
 ```python
@@ -364,8 +394,9 @@ box.animate(Rule(diffuse, neighbourhood='von_neumann', colours='inferno'),
 
 - 1D and 2D only; 3D raises at construction.
 - `step()` calls the rule once per cell in Python — about 27 ms for a 60×60
-  grid, so roughly 35 fps. Larger grids will want the `np.roll` vectorisation
-  noted in the source.
+  grid, so roughly 35 fps. Larger grids want a `vectorized` rule, see
+  [Big grids](#big-grids). Only `life_like` ships one; `elementary` and your own
+  rules run per cell unless you write one.
 - Simultaneous updates only. Block rules (Margolus, lattice gas) and
   asynchronous ones (Langton's ant) need a different stepper, not a different
   rule.
