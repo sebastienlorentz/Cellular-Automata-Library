@@ -288,12 +288,12 @@ could be added without touching the step loop.
 ```python
 from CAlib import LIFE, life_like, elementary
 
-life_like('B3/S23')  # Conway's Life, also available as LIFE
+life_like('B3/S23')   # Conway's Life, also available as LIFE
 life_like('B36/S23')  # HighLife
-life_like('B2/S')  # Seeds
-elementary(90)  # Wolfram's 1D rules — 90 draws a Sierpinski triangle
-elementary(30)  # chaotic
-elementary(110)  # Turing complete
+life_like('B2/S')     # Seeds
+elementary(90)        # Wolfram's 1D rules — 90 draws a Sierpinski triangle
+elementary(30)        # chaotic
+elementary(110)       # Turing complete
 ```
 
 `life_like` takes birth/survival notation: `B3/S23` means a dead cell with 3
