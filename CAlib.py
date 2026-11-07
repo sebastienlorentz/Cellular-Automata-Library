@@ -247,23 +247,27 @@ class Grid:
             cache_frame_data=False, save_count=save_count)
         return fig, anim
 
-    def save_gif(self, path, rule, steps, interval=100, **style):
+    def save_gif(self, path, rule, steps, interval=100, generations=None, **style):
         """Write `steps` generations to an animated GIF. Needs a step count -
-        an endless stream can't be saved."""
+        an endless stream can't be saved. generations= draws your own stream
+        of grids instead of stepping the rule."""
         rule = as_rule(rule)
         fig, anim = self._mesh_animation(
-            rule, islice(self.frames(rule), steps), interval, style, save_count=steps)
+            rule, islice(generations or self.frames(rule), steps), interval, style,
+            save_count=steps)
         anim.save(path, writer=animation.PillowWriter(fps=round(1000 / interval)))
         plt.close(fig)
 
-    def animate(self, rule, record=False, interval=100, **style):
+    def animate(self, rule, record=False, interval=100, generations=None, **style):
         """Live view - each redraw computes the next generation, so it runs
-        endlessly. record=True also keeps every frame in self.history."""
+        endlessly. record=True also keeps every frame in self.history.
+        generations= draws your own stream of grids instead; the rule is then
+        only used to draw them, and record is up to your loop."""
         rule = as_rule(rule)
         if record:
             self.history = [self.cells.copy()]
         fig, anim = self._mesh_animation(
-            rule, self.frames(rule, record), interval, style)
+            rule, generations or self.frames(rule, record), interval, style)
         plt.show()
         return anim  # keep the reference alive or the animation stops
 

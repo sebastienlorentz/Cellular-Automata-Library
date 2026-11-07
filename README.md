@@ -259,6 +259,30 @@ checks Life's two paths agree cell for cell over 50 generations, on every
 boundary. Built-in `life_like` rules (so `LIFE` too) come with one; on 560k
 cells that's 3.5 s → 0.02 s per generation.
 
+### Driving it yourself
+
+`frames()` is one loop: step every cell at once, repeat. Some models need a
+different one — agents moving over a field, or cells updated one at a time.
+Write that loop as a generator that yields the grid, and hand it to the viewers
+in place of the built-in one:
+
+```python
+diffusion = Rule(diffuse, neighbourhood='von_neumann', colours='inferno')
+
+def ticks():
+    while True:
+        g.cells[25, 25] += 0.1             # a source the rule knows nothing about
+        g.cells = g.step(diffusion)        # the automaton's own update
+        yield g.cells
+
+g.animate(diffusion, generations=ticks(), vmin=0, vmax=1)
+g.save_gif('out.gif', diffusion, steps=200, generations=ticks())
+```
+
+The rule passed alongside is then only used to draw — its `display`, `style`,
+`colours` and `name` — and nothing is stepped for you. `record=True` doesn't
+apply; append to `g.history` in your loop if you want it.
+
 ## Viewing
 
 ```python
@@ -397,7 +421,7 @@ box.animate(Rule(diffuse, neighbourhood='von_neumann', colours='inferno'),
   grid, so roughly 35 fps. Larger grids want a `vectorized` rule, see
   [Big grids](#big-grids). Only `life_like` ships one; `elementary` and your own
   rules run per cell unless you write one.
-- Simultaneous updates only. Block rules (Margolus, lattice gas) and
+- `step()` is simultaneous only. Block rules (Margolus, lattice gas) and
   asynchronous ones (Langton's ant) need a different stepper, not a different
-  rule.
+  rule — write it as your own loop, see [Driving it yourself](#driving-it-yourself).
 - `record=True` grows `history` without bound.
