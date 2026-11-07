@@ -20,15 +20,15 @@ NEIGHBOURHOODS = {
 # Edge behaviour, as numpy's padding modes:
 #   periodic  wraps around, the usual CA torus
 #   fixed     surrounded by a constant (`outside`), so patterns die at the wall
-#   reflect   mirrors the interior back - no flux, e.g. diffusion in a box
+#   reflect   mirrors the interior back, so nothing flows out (diffusion in a box)
 #   edge      repeats the nearest cell, a zero-gradient wall
 BOUNDARIES = {'periodic': 'wrap', 'fixed': 'constant',
               'reflect': 'reflect', 'edge': 'edge'}
 
 
 class Rule:
-    """An automaton: the transition function plus what it needs to run and to
-    be drawn. Anything left as None falls back to the grid's own setting."""
+    """The transition function together with the settings it needs to run and
+    be drawn. Settings left as None fall back to the grid's own."""
 
     def __init__(self, fn, neighbourhood=None, colours=STATE_COLOURS, name='',
                  needs_index=False, display=None, style=None, vectorized=None):
@@ -55,7 +55,7 @@ class Rule:
 
 
 def as_rule(rule):
-    """A bare function is a Rule with everything left to the grid."""
+    """Wrap a bare function in a Rule that leaves every setting to the grid."""
     return rule if isinstance(rule, Rule) else Rule(rule)
 
 
@@ -72,7 +72,7 @@ class Grid:
             raise ValueError(f'boundary must be one of {list(BOUNDARIES)}')
         self.boundary = boundary          # one of BOUNDARIES
         self.outside = outside            # the constant, when boundary='fixed'
-        # Fixed for the whole run - an automaton doesn't change what it can see.
+        # Fixed for the whole run, since an automaton doesn't change what it can see.
         self.neighbourhood = neighbourhood or ('1d' if self.cells.ndim == 1 else 'moore')
         self.history = []
 
@@ -106,12 +106,13 @@ class Grid:
 
     @property
     def radius(self):
-        """How far the furthest offset reaches - how wide the border must be."""
+        """How far the furthest offset reaches, which sets the border width."""
         return max(max(abs(c) for c in offset) for offset in self.offsets)
 
     def randomise(self, density=0.5, states=2, seed=None):
         """Scatter random live cells. density is the fraction that end up
-        non-zero; states=3 means values 0, 1 and 2. Returns self, so it chains."""
+        non-zero, and states=3 gives values 0, 1 and 2. Returns the grid so the
+        call can be chained."""
         rng = np.random.default_rng(seed)
         live = rng.random(self.cells.shape) < density
         values = rng.integers(1, states, self.cells.shape)
@@ -119,9 +120,9 @@ class Grid:
         return self
 
     def padded(self):
-        """The grid inside a border holding whatever the boundary implies, so
-        neighbour lookups never need a bounds check. The border is as wide as
-        the neighbourhood reaches, so offsets of any radius stay inside it."""
+        """The grid surrounded by a border filled according to the boundary
+        setting. The border is as wide as the neighbourhood reaches, which means
+        neighbour lookups at any radius need no bounds check."""
         if self.boundary == 'fixed':
             return np.pad(self.cells, self.radius, 'constant',
                           constant_values=self.outside)
@@ -139,8 +140,8 @@ class Grid:
                 for offset in self.offsets]
 
     def step(self, rule):
-        """One generation. Reads the current grid and returns a fresh array, so
-        every cell updates off the same state (CA updates are simultaneous)."""
+        """Compute one generation and return it as a new array. Every cell is
+        updated from the same current grid, since CA updates are simultaneous."""
         rule = as_rule(rule)
         if rule.neighbourhood:
             self.neighbourhood = rule.neighbourhood  # the automaton sets what it sees
@@ -153,9 +154,9 @@ class Grid:
         if rule.vectorized:
             # Same padded array, so the boundary means the same thing either way.
             return rule.vectorized(cells, padded, offsets, r)
-        # ponytail: plain Python loop over every cell, so any rule callback works.
-        # Minutes per generation on a 500k-cell grid - give the rule a
-        # `vectorized` for those.
+        # Plain Python loop over every cell, so any rule callback works. On a
+        # 500k-cell grid this takes minutes per generation, which is what a
+        # rule's `vectorized` is for.
         new = np.empty_like(cells)
         for index in np.ndindex(cells.shape):
             neigh = [padded[tuple(i + o + r for i, o in zip(index, offset))]
@@ -164,8 +165,8 @@ class Grid:
         return new
 
     def frames(self, rule, record=False):
-        """Endless generator of grids. Nothing is simulated ahead of time - one
-        generation is computed per frame pulled."""
+        """An endless generator that computes the next generation each time a
+        frame is pulled from it, so nothing is simulated ahead of time."""
         rule = as_rule(rule)
         while True:
             self.cells = self.step(rule)
@@ -199,8 +200,8 @@ class Grid:
         return {'cmap': rule.colours, 'title': rule.name, **rule.style, **style}
 
     def show(self, rule=None, save=None, **style):
-        """Draw the grid as it stands. Pass the rule to draw it the rule's way,
-        save='x.png' writes it instead."""
+        """Draw the grid as it stands, using the rule's colours and display if a
+        rule is passed. With save='x.png' the image is written to file instead."""
         cells = self.cells
         if rule is not None:
             rule = as_rule(rule)
@@ -210,8 +211,8 @@ class Grid:
         self._finish(save)
 
     def spacetime(self, rule, steps, save=None, **style):
-        """The usual way to view a 1D automaton: every generation stacked into
-        one image, time running down the page. save='x.png' writes it."""
+        """Stack `steps` generations of a 1D automaton into one image, with time
+        running down the page. With save='x.png' the image is written to file."""
         rule = as_rule(rule)
         self.history = [self.cells.copy()]
         generations = self.frames(rule, record=True)
@@ -232,8 +233,8 @@ class Grid:
             plt.show()
 
     def _mesh_animation(self, rule, generations, interval, style, save_count=None):
-        """Shared by animate() and save_gif(): a figure whose mesh redraws from
-        whatever stream of grids it's handed."""
+        """Build the figure used by animate() and save_gif(), redrawing the mesh
+        for each grid in `generations`."""
         style = self._style_for(rule, style)   # explicit style still wins
         fig, ax = plt.subplots()
         mesh = self._draw(rule.display(self.cells), ax, **style)
@@ -248,9 +249,9 @@ class Grid:
         return fig, anim
 
     def save_gif(self, path, rule, steps, interval=100, generations=None, **style):
-        """Write `steps` generations to an animated GIF. Needs a step count -
-        an endless stream can't be saved. generations= draws your own stream
-        of grids instead of stepping the rule."""
+        """Write `steps` generations to an animated GIF. The step count is
+        needed because an endless stream can't be saved. Pass generations= to
+        draw your own stream of grids instead of stepping the rule."""
         rule = as_rule(rule)
         fig, anim = self._mesh_animation(
             rule, islice(generations or self.frames(rule), steps), interval, style,
@@ -259,10 +260,11 @@ class Grid:
         plt.close(fig)
 
     def animate(self, rule, record=False, interval=100, generations=None, **style):
-        """Live view - each redraw computes the next generation, so it runs
-        endlessly. record=True also keeps every frame in self.history.
-        generations= draws your own stream of grids instead; the rule is then
-        only used to draw them, and record is up to your loop."""
+        """Show the automaton live, computing a new generation on each redraw
+        until the window is closed. record=True also keeps every frame in
+        self.history. Pass generations= to draw your own stream of grids
+        instead, in which case the rule is used only for drawing and recording
+        is left to your loop."""
         rule = as_rule(rule)
         if record:
             self.history = [self.cells.copy()]
@@ -273,8 +275,9 @@ class Grid:
 
 
 def shifted(padded, offset, radius, shape):
-    """Every cell's neighbour at `offset`, all at once: the padded grid sliced
-    back down to `shape`. The building block for a rule's `vectorized`."""
+    """Every cell's neighbour at `offset` as one array, made by slicing the
+    padded grid back down to `shape`. A rule's `vectorized` sums this over its
+    offsets to count neighbours."""
     return padded[tuple(slice(radius + o, radius + o + n)
                         for o, n in zip(offset, shape))]
 
@@ -284,9 +287,9 @@ def as_2d(cells):
 
 
 def life_like(spec='B3/S23', name=None):
-    """A 2D Moore automaton in birth/survival notation. 'B3/S23' is Conway's
-    Life: a dead cell with 3 live neighbours is born, a live one with 2 or 3
-    survives. 'B36/S23' is HighLife, 'B2/S' is Seeds."""
+    """A 2D Moore automaton from birth/survival notation. In 'B3/S23', which
+    is Conway's Life, a dead cell with 3 live neighbours is born and a live one
+    with 2 or 3 survives. 'B36/S23' is HighLife and 'B2/S' is Seeds."""
     born, survive = spec.upper().lstrip('B').split('/S')
     born = {int(n) for n in born}
     survive = {int(n) for n in survive}
