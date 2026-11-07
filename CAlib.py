@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
 from matplotlib.colors import ListedColormap
+from matplotlib.patches import Rectangle
 
 # State 0 is white (empty), 1-10 are matplotlib's tab10 cycle.
 STATE_COLOURS = ['white'] + list(plt.get_cmap('tab10').colors)
@@ -177,7 +178,7 @@ class Grid:
     # --- rendering: reads arrays, never touches the step loop ---------------
 
     def _draw(self, cells, ax, cmap=STATE_COLOURS, grid_lines=True, line_width=1,
-              title='', vmin=None, vmax=None):
+              border=0, title='', vmin=None, vmax=None):
         # vmin/vmax pin the value range. Continuous automata need them, or every
         # frame rescales to its own min and max and nothing appears to change.
         if isinstance(cmap, list):
@@ -189,6 +190,11 @@ class Grid:
             cmap = ListedColormap(cmap)
         mesh = ax.pcolormesh(as_2d(cells), cmap=cmap, vmin=vmin, vmax=vmax,
                              edgecolor='black', linewidth=line_width if grid_lines else 0)
+        if border:
+            # unclipped, or the axes edge cuts off the outer half of the line
+            rows, cols = as_2d(cells).shape
+            ax.add_patch(Rectangle((0, 0), cols, rows, fill=False, edgecolor='black',
+                                   linewidth=border, clip_on=False))
         ax.set_aspect('equal')
         ax.axis('off')
         ax.invert_yaxis()   # row 0 on top, so time runs down a space-time plot

@@ -299,7 +299,7 @@ g.spacetime(rule, steps=64)            # 1D: generations stacked, time downward
 g.spacetime(rule, 64, save='r90.png')
 ```
 
-All of them accept the style arguments `cmap`, `grid_lines`, `line_width`,
+All of them accept the style arguments `cmap`, `grid_lines`, `line_width`, `border`,
 `title`, `vmin` and `vmax` (see [Colours](#colours)). A `Rule`'s `colours`,
 `name` and `style` supply the defaults, and anything you pass explicitly takes
 precedence.
@@ -361,6 +361,7 @@ With a colour list they are set for you, to `0` and `len(list) - 1`.
 | `title` | Plot title. Defaults to the `Rule`'s `name`. |
 | `grid_lines` | Black lines between cells. Turn them off for large grids and space-time plots, where they would cover the image. |
 | `line_width` | Thickness of those lines. |
+| `border` | Thickness of a black line around the whole grid. `0`, the default, draws none. |
 | `save` | On `show()` and `spacetime()`, the path to write the image to instead of opening a window. |
 | `interval` | On `animate()` and `save_gif()`, milliseconds per frame. |
 
